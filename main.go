@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"os"
 	"log"
+	"os"
 )
 
 func main() {
@@ -30,9 +30,9 @@ func main() {
 			pidMap[h] = i
 		}
 
-		StartLeader(pidMap)
+		StartLeader(pidMap, *portPtr)
 	} else {
-		StartFollower(hosts[0])
+		StartFollower(hosts[0], *portPtr)
 	}
 }
 
