@@ -15,17 +15,58 @@ type Message struct {
 	Data map[string]int
 }
 
-func ReqMessage(rid int, cid int, pid int) Message {
+func ReqMessage(rid int, cid int, pid int, opType int) Message {
 
 	m := make(map[string]int)
 	m["reqId"] = rid
 	m["curViewId"] = cid
 	m["procId"] = pid
+	m["opType"] = opType
 
 	return Message{
 		Type: 0, // REQ message
 		Data: m,
 	}
+}
+
+func IsReqMessage(message *Message) bool {
+	return message.Type == 0
+}
+
+func IsOkMessage(message *Message) bool {
+	return message.Type == 1
+}
+
+func IsNewViewMessage(message *Message) bool {
+	return message.Type == 2
+}
+
+func IsNewLeaderMessage(message *Message) bool {
+	return message.Type == 3
+}
+
+func AddReqMessage(rid int, cid int, pid int) Message {
+	return ReqMessage(rid, cid, pid, 0)
+}
+
+func IsAddReqMessage(msg *Message) bool {
+	return msg.Data["opType"] == 0
+}
+
+func PendingReqMessage(rid int, cid int, pid int) Message {
+	return ReqMessage(rid, cid, pid, 1)
+}
+
+func IsPendingReqMessage(msg *Message) bool {
+	return msg.Data["opType"] == 1
+}
+
+func DeleteReqMessage(rid int, cid int, pid int) Message {
+	return ReqMessage(rid, cid, pid, 2)
+}
+
+func IsDeleteReqMessage(msg *Message) bool {
+	return msg.Data["opType"] == 2
 }
 
 func OkMessage(rid int, cid int) Message {
@@ -36,5 +77,15 @@ func OkMessage(rid int, cid int) Message {
 	return Message{
 		Type: 1,
 		Data: m,
+	}
+}
+
+func NewViewMessage(cid int, mMap map[string]int) Message {
+
+	mMap["curViewId"] = cid
+
+	return Message{
+		Type: 2,
+		Data: mMap,
 	}
 }

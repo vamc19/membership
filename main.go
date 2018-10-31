@@ -4,11 +4,25 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"time"
 )
+
+var hostPidMap = make(map[string]int) // maps hostname to pid
+var pidHostMap = make(map[int]string) // maps pid to hostname
+
+// Working with hostnames is surprisingly hard - socket connections only show IP
+// Populate hostname to IP mappings for all hosts in the hostsfile
+var ipHostMap = make(map[string]string) // maps remote ip addresses to hostname
+
+var leader string
+var port int
+
+var viewId int
+var reqId int
+var membershipList = make(map[string]bool) // hostname : true
+var reqList = make(map[[2]int]Message)     // {reqId, viewId} : Message
 
 func main() {
 
@@ -23,24 +37,26 @@ func main() {
 
 	// read host file
 	hosts := getHostListFromFile(*hostfilePtr)
+	leader = hosts[0]
+
+	port = *portPtr // TCP port. UDP port is (port+1)
 
 	hostname, err := os.Hostname()
 	LogFatalCheck(err, "Error retrieving hostname")
 
-	ipHostMap := make(map[string]string)
-	pidMap := make(map[string]int)
-
 	for i, h := range hosts {
-		pidMap[h] = i
+		hostPidMap[h] = i
+		pidHostMap[i] = h
 		ipAddrs, _ := net.LookupHost(h)
 		ipHostMap[ipAddrs[0]] = h
 	}
 
-	if hosts[0] == hostname {
-		log.Printf("Master: %s", hostname)
-		StartLeader(ipHostMap, pidMap, *portPtr)
+	membershipList[leader] = true // Add leader to membershipList
+
+	if leader == hostname {
+		StartLeader()
 	} else {
-		StartFollower(ipHostMap, hosts[0], *portPtr)
+		StartFollower()
 	}
 }
 

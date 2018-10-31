@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 )
 
 // Given a Listener and a channel, this function will receive data from the socket,
@@ -54,7 +55,6 @@ func acceptUDPHeartbeats(udp net.UDPConn, hbMsgChan chan string) {
 
 	for {
 		_, remoteAddr, _ := udp.ReadFromUDP(buf)
-
 		hbMsgChan <- remoteAddr.IP.String()
 	}
 }
@@ -65,4 +65,17 @@ func sendHeartbeat(toAddr string) {
 	defer conn.Close()
 
 	conn.Write([]byte("ping"))
+}
+
+func startHeartbeat(timeout int) {
+
+	for {
+		for h := range membershipList {
+			addr := fmt.Sprintf("%s:%d", h, port+1)
+			go sendHeartbeat(addr)
+		}
+
+		time.Sleep(time.Duration(timeout) * time.Second)
+	}
+
 }
