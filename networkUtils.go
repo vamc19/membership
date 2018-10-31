@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"log"
 	"net"
+	"strings"
 )
 
 // Given a Listener and a channel, this function will receive data from the socket,
 // decodes it to Message struct and send it through the channel. Used as a goroutine
 // in Leader and follower event loops.
-func acceptTCPMessages(tcp net.Listener, inMsgChan chan Message) {
+func acceptTCPMessages(tcp net.Listener, inMsgChan chan InMsgType) {
 	buf := make([]byte, 1024)
 
 	for {
@@ -26,9 +26,9 @@ func acceptTCPMessages(tcp net.Listener, inMsgChan chan Message) {
 		gobj := gob.NewDecoder(bytes.NewBuffer(buf))
 		gobj.Decode(msg)
 
-		log.Printf("accpeted TCP message from %s", conn.RemoteAddr())
+		remoteIP := strings.Split(conn.RemoteAddr().String(), ":")[0]
 
-		inMsgChan <- *msg
+		inMsgChan <- InMsgType{From: remoteIP, Message: *msg}
 	}
 
 }
@@ -54,10 +54,8 @@ func acceptUDPHeartbeats(udp net.UDPConn, hbMsgChan chan string) {
 
 	for {
 		_, remoteAddr, _ := udp.ReadFromUDP(buf)
-		sender, _ := net.LookupAddr(remoteAddr.IP.String())
 
-		println("Got heartbeat from", sender[0])
-
+		hbMsgChan <- remoteAddr.IP.String()
 	}
 }
 

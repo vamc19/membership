@@ -2,16 +2,21 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 )
 
-func StartLeader(pidMap map[string]int, port int) {
+type InMsgType struct {
+	From    string
+	Message Message
+}
+
+func StartLeader(ipHostMap map[string]string, pidMap map[string]int, port int) {
 
 	println("Leader started")
-	//hostname, err := os.Hostname()
 
 	// TCP Message Channel
-	inMsgChan := make(chan Message)
+	inMsgChan := make(chan InMsgType)
 	defer close(inMsgChan)
 
 	tcp, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
@@ -31,8 +36,13 @@ func StartLeader(pidMap map[string]int, port int) {
 	go acceptUDPHeartbeats(*udp, hbMsgChan)
 
 	for {
-		msg := <-inMsgChan
-		println("got msg", msg.Type)
+
+		select {
+		case msg := <-inMsgChan:
+			log.Printf("Got msg of type %d from %s", msg.Message.Type, ipHostMap[msg.From])
+		case hb := <-hbMsgChan:
+			println("got heartbeat from", ipHostMap[hb])
+		}
 	}
 
 }

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"time"
 )
@@ -26,17 +27,20 @@ func main() {
 	hostname, err := os.Hostname()
 	LogFatalCheck(err, "Error retrieving hostname")
 
+	ipHostMap := make(map[string]string)
+	pidMap := make(map[string]int)
+
+	for i, h := range hosts {
+		pidMap[h] = i
+		ipAddrs, _ := net.LookupHost(h)
+		ipHostMap[ipAddrs[0]] = h
+	}
+
 	if hosts[0] == hostname {
 		log.Printf("Master: %s", hostname)
-
-		pidMap := make(map[string]int)
-		for i, h := range hosts {
-			pidMap[h] = i
-		}
-
-		StartLeader(pidMap, *portPtr)
+		StartLeader(ipHostMap, pidMap, *portPtr)
 	} else {
-		StartFollower(hosts[0], *portPtr)
+		StartFollower(ipHostMap, hosts[0], *portPtr)
 	}
 }
 

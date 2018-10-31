@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func StartFollower(leader string, port int) {
+func StartFollower(ipHostMap map[string]string, leader string, port int) {
 
 	log.Printf("Follower started")
 	log.Printf("Contacting leader at %s", leader)
@@ -25,6 +25,8 @@ func StartFollower(leader string, port int) {
 
 	sendTCPMsg(msg, leaderTCPAddr)
 	sendTCPMsg(msg2, leaderTCPAddr)
+
+	sendHeartbeat(leaderUDPAddr)
 
 	time.Sleep(2 * time.Second)
 }
