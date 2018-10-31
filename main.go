@@ -6,18 +6,22 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 )
 
 func main() {
 
 	portPtr := flag.Int("p", 10000, "Port the process will be listening on for incoming messages")
+	pausePtr := flag.Int("pause", 0, "Sleep for specified time after startup")
 	hostfilePtr := flag.String("h", "hostfile", "Path to hostfile")
 
 	flag.Parse()
 
+	// Sleep before continuing. Use to delay start of follower
+	time.Sleep(time.Duration(*pausePtr) * time.Second)
+
 	// read host file
 	hosts := getHostListFromFile(*hostfilePtr)
-	println(*portPtr)
 
 	hostname, err := os.Hostname()
 	LogFatalCheck(err, "Error retrieving hostname")

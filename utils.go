@@ -11,3 +11,9 @@ func LogFatalCheck(e error, msg string) {
 		log.Fatal(errors.New(fmt.Sprintf("%s: %v", msg, e)))
 	}
 }
+
+func LogCheck(e error, msg string) {
+	if e != nil {
+		log.Printf(msg)
+	}
+}

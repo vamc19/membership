@@ -3,7 +3,7 @@ version: '3'
 services:
   machine1:
     image: ubuntu
-    command: /code/prj2 -p 10 -h /code/hostfile
+    command: /code/prj2 -p 13337 -h /code/hostfile
     hostname: vdi-linux-030.ccs.neu.edu
     expose:
     - "10000"
@@ -17,7 +17,7 @@ services:
 
   machine2:
     image: ubuntu
-    command:  /code/prj2 -p 10 -h /code/hostfile
+    command:  /code/prj2 -p 13337 -h /code/hostfile -pause 2
     hostname: vdi-linux-031.ccs.neu.edu
     expose:
     - "10000"

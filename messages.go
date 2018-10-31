@@ -11,8 +11,8 @@ package main
 // NEWVIEW - 2
 // NEWLEADER - 3
 type Message struct {
-	Type   int
-	Data   map[string]int
+	Type int
+	Data map[string]int
 }
 
 func ReqMessage(rid int, cid int, pid int) Message {
@@ -23,8 +23,8 @@ func ReqMessage(rid int, cid int, pid int) Message {
 	m["procId"] = pid
 
 	return Message{
-		Type:   0, // REQ message
-		Data:   m,
+		Type: 0, // REQ message
+		Data: m,
 	}
 }
 
@@ -34,7 +34,7 @@ func OkMessage(rid int, cid int) Message {
 	m["curViewId"] = cid
 
 	return Message{
-		Type:   1,
-		Data:   m,
+		Type: 1,
+		Data: m,
 	}
 }
