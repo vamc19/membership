@@ -50,7 +50,7 @@ services:
 
   machine5:
     image: ubuntu
-    command: /code/prj2 -p 13337 -h /code/hostfile -pause 20
+    command: /code/prj2 -p 13337 -h /code/hostfile -pause 10
     hostname: vdi-linux-034.ccs.neu.edu
     networks:
       lab1:

@@ -39,7 +39,7 @@ func sendTCPMsg(m Message, toAddr string) {
 	buf := new(bytes.Buffer)
 
 	conn, err := net.Dial("tcp", toAddr)
-	LogFatalCheck(err, fmt.Sprintf("Error establishing tcp connection to %s", toAddr))
+	LogCheck(err, fmt.Sprintf("Error establishing tcp connection to %s", toAddr))
 	defer conn.Close()
 
 	gobobj := gob.NewEncoder(buf)

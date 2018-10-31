@@ -13,6 +13,7 @@ type InMsgType struct {
 }
 
 var okList = make(map[[2]int]map[string]bool) // {reqId, viewId} : set of hosts which sent OK messages for the request
+var lostHost = make(map[string]bool)
 
 func StartLeader() {
 
@@ -26,18 +27,20 @@ func StartLeader() {
 
 	go acceptTCPMessages(tcp, inMsgChan)
 
-	// UDP Messages for heartbeats. Starts on (TCP port + 1)
+	// UDP heartbeats message channel
 	hbMsgChan := make(chan string) // monitorUDPHeartbeats sends the remote ip address
 	defer close(hbMsgChan)
 
-	udp, err := net.ListenUDP("udp", &net.UDPAddr{Port: port + 1})
+	udp, err := net.ListenUDP("udp", &net.UDPAddr{Port: port + 1}) //on (TCP port + 1)
 	LogFatalCheck(err, "Failed to create UDP listener")
 	defer udp.Close()
 
+	hbGCTimer := make(chan bool)
+	defer close(hbGCTimer)
+
 	go monitorUDPHeartbeats(*udp, hbMsgChan)
 	go startHeartbeat(heartbeatFreq)
-
-	hbGCTimer := make(chan bool)
+	go startHBGCTimer(hbGCTimer)
 
 	for {
 
@@ -47,20 +50,21 @@ func StartLeader() {
 		case hb := <-hbMsgChan:
 			processHeartbeat(ipHostMap[hb])
 		case <-hbGCTimer:
-			checkHeartbeatTimes()
+			checkHeartbeatAndRemove()
 		}
 	}
 }
 
+// process message based on type
 func processMessage(message Message, remotehost string) {
-	// if message is OK
+
 	if IsReqMessage(&message) {
 		msg := OkMessage(message.Data["reqId"], message.Data["curViewId"])
 		go sendTCPMsg(msg, fmt.Sprintf("%s:%d", leader, port))
 	}
 
 	if IsOkMessage(&message) {
-		println("Got ok message from", remotehost)
+		//println("Got ok message from", remotehost)
 		key := [2]int{message.Data["reqId"], message.Data["curViewId"]}
 		if len(okList[key]) == 0 {
 			okList[key] = make(map[string]bool)
@@ -68,13 +72,15 @@ func processMessage(message Message, remotehost string) {
 
 		okList[key][remotehost] = true // add sender to OkList
 
-		if len(okList[key]) == len(membershipList) { // got confirmation from all peers. Finalize.
+		msg := reqList[key]
+		if (IsAddReqMessage(&msg) && len(okList[key]) == len(membershipList)) || (IsDeleteReqMessage(&msg) && len(okList[key]) == len(membershipList)-1) {
 			finalizeRequest(key)
 		}
 	}
 
 	if IsNewViewMessage(&message) {
 		//println("Ignoring new view message from", remotehost)
+		printMembership()
 	}
 
 	if IsNewLeaderMessage(&message) {
@@ -82,42 +88,72 @@ func processMessage(message Message, remotehost string) {
 	}
 }
 
+// Check if the heartbeat is from a new host.
+// If yes, start adding host to membership. Finally update timestamp.
 func processHeartbeat(remoteHost string) {
-	//log.Printf("Processing heartbeat from %s", remoteHost)
 
 	if !membershipList[remoteHost] { // New follower?
-		// Send req message to membership list
-		msg := AddReqMessage(reqId, viewId, hostPidMap[remoteHost])
+		msg := AddReqMessage(reqId, viewId, hostPidMap[remoteHost]) // ADD REQ message to members
 		reqList[[2]int{reqId, viewId}] = msg
-
-		for host := range membershipList {
-			go sendTCPMsg(msg, fmt.Sprintf("%s:%d", host, port))
-		}
+		multicastTCPMessage(msg, "")
+		reqId += 1
 	}
 
 	lastHeartBeat[remoteHost] = time.Now()
 }
 
+// Got all OK messages. Finalize pending request
 func finalizeRequest(key [2]int) {
-	msg := reqList[key]
-	if IsAddReqMessage(&msg) { // add to membershipList
-		hostname := pidHostMap[msg.Data["procId"]]
-		membershipList[hostname] = true
-		viewId += 1
+	msg := reqList[key] // request in the temp area
+	remotehost := pidHostMap[msg.Data["procId"]]
 
-		membershipMap := make(map[string]int)
-		for h := range membershipList {
-			membershipMap[h] = hostPidMap[h]
-		}
-		nvMsg := NewViewMessage(viewId, membershipMap)
-		multicastTCPMessage(nvMsg)
+	if IsAddReqMessage(&msg) { // add to membershipList
+		membershipList[remotehost] = true
+		viewId += 1
 	}
 
+	if IsDeleteReqMessage(&msg) { // delete from memebership
+		viewId += 1
+		delete(membershipList, remotehost)
+		delete(lastHeartBeat, remotehost)
+		delete(lostHost, remotehost)
+	}
+
+	// Broadcast new membership list
+	currentMembers := make(map[string]int)
+	for h := range membershipList {
+		currentMembers[h] = hostPidMap[h]
+	}
+	nvMsg := NewViewMessage(viewId, currentMembers)
+	multicastTCPMessage(nvMsg, "")
 }
 
-func multicastTCPMessage(msg Message) {
+// send message to all hosts in membership list.
+func multicastTCPMessage(msg Message, exceptHost string) {
 	for h := range membershipList {
+		if h == exceptHost { // ignore failed node
+			continue
+		}
 		addr := fmt.Sprintf("%s:%d", h, port)
 		go sendTCPMsg(msg, addr)
+	}
+}
+
+func checkHeartbeatAndRemove() {
+	n := time.Now()
+	for h, t := range lastHeartBeat {
+		if lostHost[h] { // Already processing
+			continue
+		}
+
+		if n.Sub(t) > (time.Duration(heartbeatFreq*2) * time.Second) {
+			log.Printf("Peer %d not reachable", hostPidMap[h])
+			// Delete host from membership
+			msg := DeleteReqMessage(reqId, viewId, hostPidMap[h])
+			reqList[[2]int{reqId, viewId}] = msg
+			multicastTCPMessage(msg, h)
+			reqId += 1
+			lostHost[h] = true
+		}
 	}
 }

@@ -40,7 +40,7 @@ func StartFollower() {
 		case msg := <-inMsgChan:
 			followerProcessMessage(msg.Message, msg.From)
 		case hb := <-hbMsgChan:
-			processFollowerHeartbeat(ipHostMap[hb])
+			lastHeartBeat[ipHostMap[hb]] = time.Now()
 		case <-hbGCTimer:
 			checkHeartbeatTimes()
 		}
@@ -61,14 +61,14 @@ func followerProcessMessage(message Message, remotehost string) {
 	// got a new view message. Update the memebershipList and viewId
 	if IsNewViewMessage(&message) {
 		viewId = message.Data["curViewId"]
+		membershipList = make(map[string]bool)
 
-		// update membershiplist
+		// update membershiplist and currentViewId
 		for k, v := range message.Data {
 			if k == "curViewId" {
 				viewId = v
 				continue
 			}
-
 			membershipList[k] = true
 		}
 		printMembership()
@@ -79,11 +79,6 @@ func followerProcessMessage(message Message, remotehost string) {
 	}
 }
 
-func processFollowerHeartbeat(remoteHost string) {
-	//log.Printf("got heartbeat from %s", remoteHost)
-	lastHeartBeat[remoteHost] = time.Now()
-}
-
 func printMembership() {
 	var pids []int
 	for h := range membershipList {
@@ -92,8 +87,8 @@ func printMembership() {
 
 	sort.Ints(pids)
 	str := fmt.Sprintf("Current View: %d. Members:", viewId)
-	for i := range pids {
-		str += " " + strconv.Itoa(i)
+	for _, p := range pids {
+		str += " " + strconv.Itoa(p)
 	}
 
 	log.Printf(str)
@@ -102,8 +97,15 @@ func printMembership() {
 func checkHeartbeatTimes() {
 	n := time.Now()
 	for h, t := range lastHeartBeat {
+
 		if n.Sub(t) > (time.Duration(heartbeatFreq*2) * time.Second) {
-			log.Printf("Lost host %s", h)
+
+			if !membershipList[h] { // If leader deleted host from memebership, remove it from history
+				delete(lastHeartBeat, h)
+				continue
+			}
+
+			log.Printf("Peer %d not reachable", hostPidMap[h])
 		}
 	}
 }
