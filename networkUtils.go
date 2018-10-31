@@ -49,11 +49,11 @@ func sendTCPMsg(m Message, toAddr string) {
 }
 
 // Listen for heartbeats and send the hostname through channel
-func acceptUDPHeartbeats(udp net.UDPConn, hbMsgChan chan string) {
-
-	buf := make([]byte, 8)
+func monitorUDPHeartbeats(udp net.UDPConn, hbMsgChan chan string) {
 
 	for {
+		buf := make([]byte, 8)
+
 		_, remoteAddr, _ := udp.ReadFromUDP(buf)
 		hbMsgChan <- remoteAddr.IP.String()
 	}
@@ -67,7 +67,7 @@ func sendHeartbeat(toAddr string) {
 	conn.Write([]byte("ping"))
 }
 
-func startHeartbeat(timeout int) {
+func startHeartbeat(frequency int) {
 
 	for {
 		for h := range membershipList {
@@ -75,7 +75,13 @@ func startHeartbeat(timeout int) {
 			go sendHeartbeat(addr)
 		}
 
-		time.Sleep(time.Duration(timeout) * time.Second)
+		time.Sleep(time.Duration(frequency) * time.Second)
 	}
+}
 
+func startHBGCTimer(timerMsgChan chan bool) {
+	for {
+		time.Sleep(time.Duration(heartbeatFreq) * time.Second)
+		timerMsgChan <- true
+	}
 }

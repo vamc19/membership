@@ -35,20 +35,30 @@ services:
         - vdi-linux-032.ccs.neu.edu
     volumes:
     - "./:/code"
-#
-#
-#  machine4:
-#    image: ubuntu
-#    command: /code/prj2 -p 10 -h hostfile
-#    hostname: vdi-linux-033.ccs.neu.edu
-#    expose:
-#    - "10000"
-#    networks:
-#      lab1:
-#        aliases:
-#        - vdi-linux-033.ccs.neu.edu
-#    volumes:
-#    - "./lab1:/code"
+
+
+  machine4:
+    image: ubuntu
+    command: /code/prj2 -p 13337 -h /code/hostfile -pause 8
+    hostname: vdi-linux-033.ccs.neu.edu
+    networks:
+      lab1:
+        aliases:
+        - vdi-linux-033.ccs.neu.edu
+    volumes:
+    - "./:/code"
+
+  machine5:
+    image: ubuntu
+    command: /code/prj2 -p 13337 -h /code/hostfile -pause 20
+    hostname: vdi-linux-034.ccs.neu.edu
+    networks:
+      lab1:
+        aliases:
+        - vdi-linux-034.ccs.neu.edu
+    volumes:
+    - "./:/code"
+
 
 
 networks:

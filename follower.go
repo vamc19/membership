@@ -6,12 +6,10 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"time"
 )
 
 func StartFollower() {
-
-	//log.Printf("Follower started")
-	//log.Printf("Contacting leader at %s", leader)
 
 	inMsgChan := make(chan InMsgType)
 	defer close(inMsgChan)
@@ -23,15 +21,19 @@ func StartFollower() {
 	go acceptTCPMessages(tcp, inMsgChan)
 
 	// UDP Messages for heartbeats. Starts on (TCP port + 1)
-	hbMsgChan := make(chan string) // acceptUDPHeartbeats sends the remote ip address
+	hbMsgChan := make(chan string) // monitorUDPHeartbeats sends the remote ip address
 	defer close(hbMsgChan)
 
 	udp, err := net.ListenUDP("udp", &net.UDPAddr{Port: port + 1})
 	LogFatalCheck(err, "Failed to create UDP listener")
 	defer udp.Close()
 
-	go acceptUDPHeartbeats(*udp, hbMsgChan)
-	go startHeartbeat(5)
+	hbGCTimer := make(chan bool)
+	defer close(hbGCTimer)
+
+	go monitorUDPHeartbeats(*udp, hbMsgChan)
+	go startHeartbeat(heartbeatFreq)
+	go startHBGCTimer(hbGCTimer)
 
 	for {
 		select {
@@ -39,6 +41,8 @@ func StartFollower() {
 			followerProcessMessage(msg.Message, msg.From)
 		case hb := <-hbMsgChan:
 			processFollowerHeartbeat(ipHostMap[hb])
+		case <-hbGCTimer:
+			checkHeartbeatTimes()
 		}
 	}
 }
@@ -77,6 +81,7 @@ func followerProcessMessage(message Message, remotehost string) {
 
 func processFollowerHeartbeat(remoteHost string) {
 	//log.Printf("got heartbeat from %s", remoteHost)
+	lastHeartBeat[remoteHost] = time.Now()
 }
 
 func printMembership() {
@@ -92,4 +97,13 @@ func printMembership() {
 	}
 
 	log.Printf(str)
+}
+
+func checkHeartbeatTimes() {
+	n := time.Now()
+	for h, t := range lastHeartBeat {
+		if n.Sub(t) > (time.Duration(heartbeatFreq*2) * time.Second) {
+			log.Printf("Lost host %s", h)
+		}
+	}
 }

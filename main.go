@@ -18,11 +18,13 @@ var ipHostMap = make(map[string]string) // maps remote ip addresses to hostname
 
 var leader string
 var port int
+var heartbeatFreq int
 
 var viewId int
 var reqId int
-var membershipList = make(map[string]bool) // hostname : true
-var reqList = make(map[[2]int]Message)     // {reqId, viewId} : Message
+var membershipList = make(map[string]bool)     // hostname : true
+var reqList = make(map[[2]int]Message)         // {reqId, viewId} : Message
+var lastHeartBeat = make(map[string]time.Time) // host : Time of last heartbeat
 
 func main() {
 
@@ -40,6 +42,7 @@ func main() {
 	leader = hosts[0]
 
 	port = *portPtr // TCP port. UDP port is (port+1)
+	heartbeatFreq = 5
 
 	hostname, err := os.Hostname()
 	LogFatalCheck(err, "Error retrieving hostname")
