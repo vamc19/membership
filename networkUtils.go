@@ -85,3 +85,14 @@ func startHBGCTimer(timerMsgChan chan bool) {
 		timerMsgChan <- true
 	}
 }
+
+// Send message to all hosts in membership list.
+func multicastTCPMessage(msg Message, exceptHost string) {
+	for h := range membershipList {
+		if h == exceptHost { // ignore failed node
+			continue
+		}
+		addr := fmt.Sprintf("%s:%d", h, port)
+		go sendTCPMsg(msg, addr)
+	}
+}

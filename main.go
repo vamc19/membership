@@ -16,35 +16,43 @@ var pidHostMap = make(map[int]string) // maps pid to hostname
 // Populate hostname to IP mappings for all hosts in the hostsfile
 var ipHostMap = make(map[string]string) // maps remote ip addresses to hostname
 
-var leader string
+var leaderHostname string
 var port int
 var heartbeatFreq int
+var isLeader bool
+var failDuringRemove bool // flag for test case 4
+var removeFailed bool     // flag for test case 2
 
 var viewId int
 var reqId int
 var membershipList = make(map[string]bool)     // hostname : true
 var reqList = make(map[[2]int]Message)         // {reqId, viewId} : Message
-var lastHeartBeat = make(map[string]time.Time) // host : Time of last heartbeat
+var lastHeartbeat = make(map[string]time.Time) // host : Time of last heartbeat
 var lostHosts = make(map[string]bool)          // all the hosts that are no longer alive
 
 func main() {
 
-	portPtr := flag.Int("p", 10000, "Port the process will be listening on for incoming messages")
-	pausePtr := flag.Int("pause", 0, "Sleep for specified time after startup")
-	testPtr := flag.Bool("failleader", false, "Fail leader midway")
-	hostfilePtr := flag.String("h", "hostfile", "Path to hostfile")
+	portFlag := flag.Int("p", 10000, "Port the process will be listening on for incoming messages")
+	pauseFlag := flag.Int("pause", 0, "Sleep for specified time after startup")
+	leaderFailFlag := flag.Bool("t4", false, "Simulate test case 4")
+	persistFailNodeFlag := flag.Bool("t2", false, "Simulate test case 2. Do not remove failed nodes")
+	hostfileFlag := flag.String("h", "hostfile", "Path to hostfile")
 
 	flag.Parse()
 
 	// Sleep before continuing. Use to delay start of follower
-	time.Sleep(time.Duration(*pausePtr) * time.Second)
+	time.Sleep(time.Duration(*pauseFlag) * time.Second)
 
 	// read host file
-	hosts := getHostListFromFile(*hostfilePtr)
-	leader = hosts[0]
+	hosts := getHostListFromFile(*hostfileFlag)
+	leaderHostname = hosts[0]
 
-	port = *portPtr // TCP port. UDP port is (port+1)
+	port = *portFlag // TCP port. UDP port is (port+1)
 	heartbeatFreq = 5
+
+	// Set test case flags
+	failDuringRemove = *leaderFailFlag
+	removeFailed = !*persistFailNodeFlag
 
 	hostname, err := os.Hostname()
 	LogFatalCheck(err, "Error retrieving hostname")
@@ -56,13 +64,10 @@ func main() {
 		ipHostMap[ipAddrs[0]] = h
 	}
 
-	membershipList[leader] = true // Add leader to membershipList
+	membershipList[leaderHostname] = true // Add leaderHostname to membershipList
+	isLeader = leaderHostname == hostname
 
-	if leader == hostname {
-		StartLeader(*testPtr)
-	} else {
-		StartFollower()
-	}
+	StartEventLoop()
 }
 
 func getHostListFromFile(filePath string) []string {
