@@ -3,7 +3,7 @@ version: '3'
 services:
   machine1:
     image: ubuntu
-    command: /code/prj2 -p 13337 -h /code/hostfile -t2
+    command: /code/prj2 -p 13337 -h /code/hostfile -t4
     hostname: vdi-linux-030.ccs.neu.edu
     networks:
       lab1:
@@ -15,7 +15,7 @@ services:
 
   machine2:
     image: ubuntu
-    command:  /code/prj2 -p 13337 -h /code/hostfile -pause 2
+    command:  /code/prj2 -p 13337 -h /code/hostfile -pause 5
     hostname: vdi-linux-031.ccs.neu.edu
     networks:
       lab1:
@@ -27,7 +27,7 @@ services:
 
   machine3:
     image: ubuntu
-    command: /code/prj2 -p 13337 -h /code/hostfile -pause 5
+    command: /code/prj2 -p 13337 -h /code/hostfile -pause 8
     hostname: vdi-linux-032.ccs.neu.edu
     networks:
       lab1:
@@ -39,7 +39,7 @@ services:
 
   machine4:
     image: ubuntu
-    command: /code/prj2 -p 13337 -h /code/hostfile -pause 8
+    command: /code/prj2 -p 13337 -h /code/hostfile -pause 10
     hostname: vdi-linux-033.ccs.neu.edu
     networks:
       lab1:
@@ -50,7 +50,7 @@ services:
 
   machine5:
     image: ubuntu
-    command: /code/prj2 -p 13337 -h /code/hostfile -pause 10
+    command: /code/prj2 -p 13337 -h /code/hostfile -pause 12
     hostname: vdi-linux-034.ccs.neu.edu
     networks:
       lab1:

@@ -163,5 +163,7 @@ func restartPendingProtocol() {
 		return
 	}
 
-	removeFailedHost(pidHostMap[pendingMessage.Data["procId"]])
+	if IsDeleteReqMessage(&pendingMessage) {
+		removeFailedHost(pidHostMap[pendingMessage.Data["procId"]])
+	}
 }

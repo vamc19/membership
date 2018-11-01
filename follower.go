@@ -28,6 +28,11 @@ func followerMessageProcessor(message Message, fromHost string) {
 			}
 			membershipList[k] = true
 		}
+
+		if justJoined {
+			go multicastHeartbeats() // If just joined, let everyone know you are alive.
+			justJoined = false
+		}
 		printMembership()
 	}
 

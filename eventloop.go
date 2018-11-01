@@ -73,15 +73,15 @@ func processHeartbeat(fromHost string) {
 // Garbage collect heartbeats periodically and detect failed processes.
 func garbageCollectHeartbeats() {
 	n := time.Now()
-	for h, t := range lastHeartbeat {
-		if n.Sub(t) > (time.Duration(heartbeatFreq*2) * time.Second) { // Message delay detected
 
-			// If leader deleted host from membership, remove it from history
-			if !membershipList[h] {
-				delete(lastHeartbeat, h)
-				delete(tempLostList, h)
-				continue
-			}
+	for h := range membershipList {
+		t, ok := lastHeartbeat[h]
+
+		if !ok { // Maybe a new member, wait for it to ping
+			continue
+		}
+
+		if n.Sub(t) > (time.Duration(heartbeatFreq*2) * time.Second) {
 
 			log.Printf("Peer %d not reachable", hostPidMap[h])
 
@@ -92,17 +92,14 @@ func garbageCollectHeartbeats() {
 
 			// if leader is down...
 			if h == leaderHostname {
-				//log.Printf("Leader is down: %s", leaderHostname)
 				// Delete old leader from membership list
 				deleteMember(leaderHostname)
 
 				// Find new leader and assign it
 				leaderHostname = findNewLeader()
 
-				//log.Printf("New leader is %s", leaderHostname)
 				// Am I the new leader?
 				if leaderHostname == hostname {
-					//log.Printf("I am new leader")
 					isLeader = true
 					failDuringRemove = false // Flag did its part, relieve it of its duty
 					recoveringLeader = true

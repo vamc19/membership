@@ -71,14 +71,17 @@ func sendHeartbeat(toAddr string) {
 	conn.Write([]byte("ping"))
 }
 
+func multicastHeartbeats() {
+	for h := range membershipList {
+		addr := fmt.Sprintf("%s:%d", h, port+1)
+		go sendHeartbeat(addr)
+	}
+}
+
 func startHeartbeat(frequency int) {
 
 	for {
-		for h := range membershipList {
-			addr := fmt.Sprintf("%s:%d", h, port+1)
-			go sendHeartbeat(addr)
-		}
-
+		multicastHeartbeats()
 		time.Sleep(time.Duration(frequency) * time.Second)
 	}
 }

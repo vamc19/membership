@@ -24,6 +24,7 @@ var isLeader bool
 var failDuringRemove bool // flag for test case 4
 var removeFailedFlag bool // flag for test case 2
 var recoveringLeader bool
+var justJoined bool
 
 var viewId int
 var reqId int
@@ -57,6 +58,7 @@ func main() {
 	failDuringRemove = *leaderFailFlag
 	removeFailedFlag = !*persistFailNodeFlag
 	recoveringLeader = false
+	justJoined = true
 
 	hostname, _ = os.Hostname()
 
