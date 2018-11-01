@@ -81,7 +81,7 @@ func startHeartbeat(frequency int) {
 
 func startHBGCTimer(timerMsgChan chan bool) {
 	for {
-		time.Sleep(time.Duration(heartbeatFreq) * time.Second)
+		time.Sleep(time.Duration(3) * time.Second)
 		timerMsgChan <- true
 	}
 }
