@@ -7,3 +7,6 @@ To clean the binaries: make clean
 -h : hostfile
 -pause : Seconds to sleep upon starting
 -failleader : Executes logic for testcase 4
+
+
+Note: Only first 3 test cases will work
