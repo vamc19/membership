@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"time"
 )
+
+// All the Pending requests to NewLeader go in here...
+var newLeaderPending = make(map[[2]int]Message) // {reqId, viewId} : Message
 
 func StartFollower() {
 
@@ -52,8 +56,16 @@ func followerProcessMessage(message Message, remotehost string) {
 	// Save request to reqList and send ok message
 	if IsReqMessage(&message) {
 		key := [2]int{message.Data["reqId"], message.Data["curViewId"]}
-		reqList[key] = message
 
+		if key[1] == viewId { // Pending messages to new leader
+			newLeaderPending[key] = message
+
+			if len(newLeaderPending) == len(membershipList)-1 { // Got messages from remaining peers
+				//restartPending()
+			}
+		}
+
+		reqList[key] = message
 		msg := OkMessage(message.Data["reqId"], message.Data["curViewId"])
 		go sendTCPMsg(msg, fmt.Sprintf("%s:%d", leader, port))
 	}
@@ -75,7 +87,9 @@ func followerProcessMessage(message Message, remotehost string) {
 	}
 
 	if IsNewLeaderMessage(&message) {
-		//println("Got new leader message from", remotehost)
+		delete(membershipList, leader)
+		leader = remotehost   // update leader hostname
+		sendPendingMessages() // New leader will not have any pending messages anyway.
 	}
 }
 
@@ -102,10 +116,72 @@ func checkHeartbeatTimes() {
 
 			if !membershipList[h] { // If leader deleted host from memebership, remove it from history
 				delete(lastHeartBeat, h)
+				delete(lostHosts, h)
 				continue
 			}
 
 			log.Printf("Peer %d not reachable", hostPidMap[h])
+
+			// Check if current process is the new leader and send NewLeader message
+			if (h == leader) && lostHosts[h] && iAmNewLeader() {
+				println("I am new leader")
+				startNewLeaderProtocol()
+			}
 		}
+	}
+}
+
+func iAmNewLeader() bool {
+	var pids []int
+	hostname, _ := os.Hostname()
+
+	for h := range membershipList {
+		if h != leader {
+			pids = append(pids, hostPidMap[h])
+		}
+	}
+
+	sort.Ints(pids)
+	return pidHostMap[pids[0]] == hostname
+}
+
+func startNewLeaderProtocol() {
+	msg := NewLeaderMessage(reqId, viewId)
+
+	for h := range membershipList {
+		if !lostHosts[h] {
+			addr := fmt.Sprintf("%s:%d", h, port)
+			go sendTCPMsg(msg, addr)
+		}
+	}
+
+	reqId += 1
+}
+
+func sendPendingMessages() {
+	pending := false
+	var msg Message
+
+	for k, v := range reqList {
+		if k[1] > viewId { // ViewId in future. Pending operation
+			pending = true
+
+			if IsAddReqMessage(&v) {
+				msg = AddReqMessage(reqId, viewId, v.Data["procId"])
+			}
+
+			if IsDeleteReqMessage(&v) {
+				msg = DeleteReqMessage(reqId, viewId, v.Data["procId"])
+			}
+		}
+	}
+
+	if !pending {
+		msg = ReqMessage(reqId, viewId, 0, 3) // Nothing message
+	}
+
+	for h := range membershipList {
+		addr := fmt.Sprintf("%s:%d", h, port)
+		go sendTCPMsg(msg, addr)
 	}
 }

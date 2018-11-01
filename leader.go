@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sort"
 	"time"
 )
 
@@ -13,9 +14,12 @@ type InMsgType struct {
 }
 
 var okList = make(map[[2]int]map[string]bool) // {reqId, viewId} : set of hosts which sent OK messages for the request
-var lostHost = make(map[string]bool)
 
-func StartLeader() {
+func StartLeader(failDuringRemove bool) {
+
+	if failDuringRemove {
+		log.Printf("Will execute testcase 4")
+	}
 
 	// TCP Message Channel
 	inMsgChan := make(chan InMsgType)
@@ -50,7 +54,7 @@ func StartLeader() {
 		case hb := <-hbMsgChan:
 			processHeartbeat(ipHostMap[hb])
 		case <-hbGCTimer:
-			checkHeartbeatAndRemove()
+			checkHeartbeatAndRemove(failDuringRemove)
 		}
 	}
 }
@@ -79,13 +83,9 @@ func processMessage(message Message, remotehost string) {
 	}
 
 	if IsNewViewMessage(&message) {
-		//println("Ignoring new view message from", remotehost)
 		printMembership()
 	}
 
-	if IsNewLeaderMessage(&message) {
-		//println("Got new leader message from", remotehost)
-	}
 }
 
 // Check if the heartbeat is from a new host.
@@ -116,7 +116,7 @@ func finalizeRequest(key [2]int) {
 		viewId += 1
 		delete(membershipList, remotehost)
 		delete(lastHeartBeat, remotehost)
-		delete(lostHost, remotehost)
+		delete(lostHosts, remotehost)
 	}
 
 	// Broadcast new membership list
@@ -139,21 +139,50 @@ func multicastTCPMessage(msg Message, exceptHost string) {
 	}
 }
 
-func checkHeartbeatAndRemove() {
+func checkHeartbeatAndRemove(failDuringRemove bool) {
 	n := time.Now()
 	for h, t := range lastHeartBeat {
-		if lostHost[h] { // Already processing
+		if lostHosts[h] { // Already processing
 			continue
 		}
 
 		if n.Sub(t) > (time.Duration(heartbeatFreq*2) * time.Second) {
 			log.Printf("Peer %d not reachable", hostPidMap[h])
+
 			// Delete host from membership
 			msg := DeleteReqMessage(reqId, viewId, hostPidMap[h])
 			reqList[[2]int{reqId, viewId}] = msg
+
+			if failDuringRemove {
+				leaderFailure(h, msg)
+			}
+
 			multicastTCPMessage(msg, h)
 			reqId += 1
-			lostHost[h] = true
+			lostHosts[h] = true
 		}
 	}
+}
+
+func leaderFailure(failedHost string, message Message) {
+	var pids []int
+
+	for h := range membershipList {
+		if (h != leader) && (h != failedHost) {
+			pids = append(pids, hostPidMap[h])
+		}
+	}
+
+	sort.Ints(pids)
+	nextLeader := pidHostMap[pids[0]]
+
+	for h := range membershipList {
+		if h == nextLeader || h == failedHost { // ignore failed node
+			continue
+		}
+		addr := fmt.Sprintf("%s:%d", h, port)
+		go sendTCPMsg(message, addr)
+	}
+
+	log.Fatal("So long and thanks for all the fish!")
 }

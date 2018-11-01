@@ -4,6 +4,7 @@ package main
 // ADD - 0
 // PENDING - 1
 // DELETE - 2
+// NOTHING - 3
 
 /// Message type mapping
 // REQ - 0
@@ -53,14 +54,6 @@ func IsAddReqMessage(msg *Message) bool {
 	return msg.Data["opType"] == 0
 }
 
-func PendingReqMessage(rid int, cid int, pid int) Message {
-	return ReqMessage(rid, cid, pid, 1)
-}
-
-func IsPendingReqMessage(msg *Message) bool {
-	return msg.Data["opType"] == 1
-}
-
 func DeleteReqMessage(rid int, cid int, pid int) Message {
 	return ReqMessage(rid, cid, pid, 2)
 }
@@ -88,4 +81,20 @@ func NewViewMessage(cid int, mMap map[string]int) Message {
 		Type: 2,
 		Data: mMap,
 	}
+}
+
+func NewLeaderMessage(rid int, cid int) Message {
+	m := make(map[string]int)
+	m["reqId"] = rid
+	m["curViewId"] = cid
+	m["opType"] = 1
+
+	return Message{
+		Type: 3,
+		Data: m,
+	}
+}
+
+func IsPendingReqMessage(msg *Message) bool {
+	return msg.Data["opType"] == 1
 }

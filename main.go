@@ -25,11 +25,13 @@ var reqId int
 var membershipList = make(map[string]bool)     // hostname : true
 var reqList = make(map[[2]int]Message)         // {reqId, viewId} : Message
 var lastHeartBeat = make(map[string]time.Time) // host : Time of last heartbeat
+var lostHosts = make(map[string]bool)          // all the hosts that are no longer alive
 
 func main() {
 
 	portPtr := flag.Int("p", 10000, "Port the process will be listening on for incoming messages")
 	pausePtr := flag.Int("pause", 0, "Sleep for specified time after startup")
+	testPtr := flag.Bool("failleader", false, "Fail leader midway")
 	hostfilePtr := flag.String("h", "hostfile", "Path to hostfile")
 
 	flag.Parse()
@@ -57,7 +59,7 @@ func main() {
 	membershipList[leader] = true // Add leader to membershipList
 
 	if leader == hostname {
-		StartLeader()
+		StartLeader(*testPtr)
 	} else {
 		StartFollower()
 	}
