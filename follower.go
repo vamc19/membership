@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 )
 
 func followerMessageProcessor(message Message, fromHost string) {
@@ -37,12 +38,14 @@ func followerMessageProcessor(message Message, fromHost string) {
 	}
 
 	if IsNewLeaderMessage(&message) {
+
 		// It is possible that this host has not yet detected that the leader is down yet, but new leader has.
 		// If this message is received, just replace the old leader with new.
 		if leaderHostname != fromHost {
 			deleteMember(leaderHostname)
 			leaderHostname = findNewLeader() // Should be the same as fromHost anyway.
 		}
+		log.Printf("Leader changed. New leader is %s", leaderHostname)
 
 		sendPendingMessages() // New leaderHostname will not have any pending messages anyway.
 	}

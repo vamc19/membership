@@ -146,24 +146,22 @@ func leaderFailureScenario(failedHost string, message Message) {
 }
 
 func restartPendingProtocol() {
-	var pendingMessage Message
 
 	for _, m := range pendingMessages {
 		if IsNothingReqMessage(&m) {
 			continue
 		}
 
-		pendingMessage = m
-		break
+		if IsAddReqMessage(&m) {
+			log.Printf("Does not support ADD operation while leader restart")
+			continue
+		}
+
+		if IsDeleteReqMessage(&m) {
+			removeFailedHost(pidHostMap[m.Data["procId"]])
+			break
+		}
 	}
 
 	recoveringLeader = false
-	if IsAddReqMessage(&pendingMessage) {
-		log.Printf("Does not support ADD operation while leader restart")
-		return
-	}
-
-	if IsDeleteReqMessage(&pendingMessage) {
-		removeFailedHost(pidHostMap[pendingMessage.Data["procId"]])
-	}
 }

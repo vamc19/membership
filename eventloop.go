@@ -97,6 +97,7 @@ func garbageCollectHeartbeats() {
 
 				// Find new leader and assign it
 				leaderHostname = findNewLeader()
+				log.Printf("Leader unavailable. New leader is %s", leaderHostname)
 
 				// Am I the new leader?
 				if leaderHostname == hostname {
