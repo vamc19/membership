@@ -2,30 +2,15 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"os"
-	"sort"
-	"strconv"
 )
-
-// All the Pending requests to NewLeader go in here...
-var newLeaderPending = make(map[[2]int]Message) // {reqId, viewId} : Message
 
 func followerMessageProcessor(message Message, fromHost string) {
 
 	// Save request to reqList and send ok message
 	if IsReqMessage(&message) {
 		key := [2]int{message.Data["reqId"], message.Data["curViewId"]}
-
-		if key[1] == viewId { // Pending messages to new leaderHostname
-			newLeaderPending[key] = message
-
-			if len(newLeaderPending) == len(membershipList)-1 { // Got messages from remaining peers
-				//restartPending()
-			}
-		}
-
 		reqList[key] = message
+
 		msg := OkMessage(message.Data["reqId"], message.Data["curViewId"])
 		go sendTCPMsg(msg, fmt.Sprintf("%s:%d", leaderHostname, port))
 	}
@@ -33,7 +18,7 @@ func followerMessageProcessor(message Message, fromHost string) {
 	// got a new view message. Update the memebershipList and viewId
 	if IsNewViewMessage(&message) {
 		viewId = message.Data["curViewId"]
-		membershipList = make(map[string]bool)
+		membershipList = make(map[string]bool) // New membership list
 
 		// update membershiplist and currentViewId
 		for k, v := range message.Data {
@@ -47,51 +32,15 @@ func followerMessageProcessor(message Message, fromHost string) {
 	}
 
 	if IsNewLeaderMessage(&message) {
-		delete(membershipList, leaderHostname)
-		leaderHostname = fromHost // update leaderHostname hostname
-		sendPendingMessages()     // New leaderHostname will not have any pending messages anyway.
-	}
-}
-
-// Sort and print membership info.
-func printMembership() {
-	var pids []int
-	for h := range membershipList {
-		pids = append(pids, hostPidMap[h])
-	}
-	sort.Ints(pids)
-	str := fmt.Sprintf("Current View: %d. Members:", viewId)
-	for _, p := range pids {
-		str += " " + strconv.Itoa(p)
-	}
-	log.Printf(str)
-}
-
-func iAmNewLeader() bool {
-	var pids []int
-	hostname, _ := os.Hostname()
-
-	for h := range membershipList {
-		if h != leaderHostname {
-			pids = append(pids, hostPidMap[h])
+		// It is possible that this host has not yet detected that the leader is down yet, but new leader has.
+		// If this message is received, just replace the old leader with new.
+		if leaderHostname != fromHost {
+			deleteMember(leaderHostname)
+			leaderHostname = findNewLeader() // Should be the same as fromHost anyway.
 		}
+
+		sendPendingMessages() // New leaderHostname will not have any pending messages anyway.
 	}
-
-	sort.Ints(pids)
-	return pidHostMap[pids[0]] == hostname
-}
-
-func startNewLeaderProtocol() {
-	msg := NewLeaderMessage(reqId, viewId)
-
-	for h := range membershipList {
-		if !lostHosts[h] {
-			addr := fmt.Sprintf("%s:%d", h, port)
-			go sendTCPMsg(msg, addr)
-		}
-	}
-
-	reqId += 1
 }
 
 func sendPendingMessages() {
@@ -99,7 +48,7 @@ func sendPendingMessages() {
 	var msg Message
 
 	for k, v := range reqList {
-		if k[1] > viewId { // ViewId in future. Pending operation
+		if k[1] == viewId { // View Id is not yet updated. Probably pending?
 			pending = true
 
 			if IsAddReqMessage(&v) {
@@ -116,8 +65,6 @@ func sendPendingMessages() {
 		msg = ReqMessage(reqId, viewId, 0, 3) // Nothing message
 	}
 
-	for h := range membershipList {
-		addr := fmt.Sprintf("%s:%d", h, port)
-		go sendTCPMsg(msg, addr)
-	}
+	// Send it to only leader
+	go sendTCPMsg(msg, fmt.Sprintf("%s:%d", leaderHostname, port))
 }

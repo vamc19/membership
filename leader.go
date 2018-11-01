@@ -14,10 +14,26 @@ type InMsgType struct {
 
 var okList = make(map[[2]int]map[string]bool) // {reqId, viewId} : set of hosts which sent OK messages for the request
 
+// All the Pending requests to NewLeader go in here...
+var pendingMessages []Message
+
 // process message based on message type
 func leaderMessageProcessor(message Message, fromHost string) {
 
 	if IsReqMessage(&message) {
+		if recoveringLeader {
+			pendingMessages = append(pendingMessages, message)
+
+			// Check if received messages from all alive hosts
+			// 2 because not considering itself and lost leader.
+			// tempLost list may contain a lost host which is not removed before leader failed
+			if len(pendingMessages) == (len(membershipList) - 2 - len(tempLostList)) {
+				restartPendingProtocol()
+			}
+
+			return
+		}
+
 		msg := OkMessage(message.Data["reqId"], message.Data["curViewId"])
 		go sendTCPMsg(msg, fmt.Sprintf("%s:%d", leaderHostname, port))
 	}
@@ -30,10 +46,10 @@ func leaderMessageProcessor(message Message, fromHost string) {
 
 		okList[key][fromHost] = true // add sender to OkList
 
-		msg := reqList[key]
+		sentMsg := reqList[key]
 		// If ADD message, make sure all the hosts sent OK responses
 		// If DELETE message, make sure all but the lost host sent OK responses
-		if (IsAddReqMessage(&msg) && len(okList[key]) == len(membershipList)) || (IsDeleteReqMessage(&msg) && len(okList[key]) == len(membershipList)-1) {
+		if (IsAddReqMessage(&sentMsg) && len(okList[key]) == len(membershipList)) || (IsDeleteReqMessage(&sentMsg) && len(okList[key]) == len(membershipList)-1) {
 			multicastNewViewMessage(key)
 		}
 	}
@@ -41,7 +57,14 @@ func leaderMessageProcessor(message Message, fromHost string) {
 	if IsNewViewMessage(&message) {
 		printMembership()
 	}
+}
 
+// Start protocol to add a host to membership list
+func startAddOperation(host string) {
+	msg := AddReqMessage(reqId, viewId, hostPidMap[host]) // ADD REQ message to members
+	reqList[[2]int{reqId, viewId}] = msg
+	multicastTCPMessage(msg, "")
+	reqId += 1
 }
 
 // Got all OK messages. Build and send updated membership
@@ -56,9 +79,7 @@ func multicastNewViewMessage(key [2]int) {
 
 	if IsDeleteReqMessage(&msg) { // delete from membership
 		viewId += 1
-		delete(membershipList, remotehost)
-		delete(lastHeartbeat, remotehost)
-		delete(lostHosts, remotehost)
+		deleteMember(remotehost)
 	}
 
 	// Broadcast new membership list
@@ -74,11 +95,8 @@ func multicastNewViewMessage(key [2]int) {
 // If yes, start adding host to membership. Finally update timestamp.
 func leaderHeartbeatProcessor(remoteHost string) {
 
-	if !membershipList[remoteHost] { // New follower?
-		msg := AddReqMessage(reqId, viewId, hostPidMap[remoteHost]) // ADD REQ message to members
-		reqList[[2]int{reqId, viewId}] = msg
-		multicastTCPMessage(msg, "")
-		reqId += 1
+	if !membershipList[remoteHost] && !removedList[remoteHost] { // New follower?
+		startAddOperation(remoteHost)
 	}
 
 	lastHeartbeat[remoteHost] = time.Now()
@@ -86,7 +104,7 @@ func leaderHeartbeatProcessor(remoteHost string) {
 
 // Remove unreachable hosts
 func removeFailedHost(failedHost string) {
-	if lostHosts[failedHost] { // Already processing
+	if tempLostList[failedHost] { // Already processing
 		return
 	}
 
@@ -100,7 +118,7 @@ func removeFailedHost(failedHost string) {
 
 	multicastTCPMessage(msg, failedHost)
 	reqId += 1
-	lostHosts[failedHost] = true
+	tempLostList[failedHost] = true
 }
 
 func leaderFailureScenario(failedHost string, message Message) {
@@ -123,5 +141,27 @@ func leaderFailureScenario(failedHost string, message Message) {
 		go sendTCPMsg(message, addr)
 	}
 
+	time.Sleep(1 * time.Second) // Stay alive until the messages are sent
 	log.Fatal("So long and thanks for all the fish!")
+}
+
+func restartPendingProtocol() {
+	var pendingMessage Message
+
+	for _, m := range pendingMessages {
+		if IsNothingReqMessage(&m) {
+			continue
+		}
+
+		pendingMessage = m
+		break
+	}
+
+	recoveringLeader = false
+	if IsAddReqMessage(&pendingMessage) {
+		log.Printf("Does not support ADD operation while leader restart")
+		return
+	}
+
+	removeFailedHost(pidHostMap[pendingMessage.Data["procId"]])
 }

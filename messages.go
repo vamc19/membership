@@ -98,3 +98,7 @@ func NewLeaderMessage(rid int, cid int) Message {
 func IsPendingReqMessage(msg *Message) bool {
 	return msg.Data["opType"] == 1
 }
+
+func IsNothingReqMessage(msg *Message) bool {
+	return msg.Data["opType"] == 3
+}

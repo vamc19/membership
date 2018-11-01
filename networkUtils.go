@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"log"
 	"net"
 	"strings"
 	"time"
@@ -39,7 +40,10 @@ func sendTCPMsg(m Message, toAddr string) {
 	buf := new(bytes.Buffer)
 
 	conn, err := net.Dial("tcp", toAddr)
-	LogCheck(err, fmt.Sprintf("Error establishing tcp connection to %s", toAddr))
+	if err != nil {
+		log.Printf("Error establishing tcp connection to %s: Reason: %v", toAddr, err)
+		return
+	}
 	defer conn.Close()
 
 	gobobj := gob.NewEncoder(buf)

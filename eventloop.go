@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sort"
+	"strconv"
 	"time"
 )
 
@@ -77,15 +79,85 @@ func garbageCollectHeartbeats() {
 			// If leader deleted host from membership, remove it from history
 			if !membershipList[h] {
 				delete(lastHeartbeat, h)
-				delete(lostHosts, h)
+				delete(tempLostList, h)
 				continue
 			}
 
 			log.Printf("Peer %d not reachable", hostPidMap[h])
 
-			if isLeader && removeFailed {
+			// Is leader, not executing test case 2 and is not a recovering leader
+			if isLeader && removeFailedFlag && !recoveringLeader {
 				removeFailedHost(h)
+			}
+
+			// if leader is down...
+			if h == leaderHostname {
+				//log.Printf("Leader is down: %s", leaderHostname)
+				// Delete old leader from membership list
+				deleteMember(leaderHostname)
+
+				// Find new leader and assign it
+				leaderHostname = findNewLeader()
+
+				//log.Printf("New leader is %s", leaderHostname)
+				// Am I the new leader?
+				if leaderHostname == hostname {
+					//log.Printf("I am new leader")
+					isLeader = true
+					failDuringRemove = false // Flag did its part, relieve it of its duty
+					recoveringLeader = true
+					startNewLeaderProtocol()
+				}
 			}
 		}
 	}
+}
+
+// Remove all the traces of a lost host
+func deleteMember(host string) {
+	delete(membershipList, host)
+	delete(lastHeartbeat, host)
+	delete(tempLostList, host)
+}
+
+// Sort and print membership info.
+func printMembership() {
+	var pids []int
+	for h := range membershipList {
+		pids = append(pids, hostPidMap[h])
+	}
+	sort.Ints(pids)
+	str := fmt.Sprintf("Current View: %d. Members:", viewId)
+	for _, p := range pids {
+		str += " " + strconv.Itoa(p)
+	}
+	log.Printf(str)
+}
+
+// Find the hostname of next leader
+func findNewLeader() string {
+	var pids []int
+
+	for h := range membershipList {
+		if h != leaderHostname {
+			pids = append(pids, hostPidMap[h])
+		}
+	}
+
+	sort.Ints(pids)
+	return pidHostMap[pids[0]]
+}
+
+// Send NEWLEADER message
+func startNewLeaderProtocol() {
+	msg := NewLeaderMessage(reqId, viewId)
+
+	for h := range membershipList {
+		if !tempLostList[h] { // There may be hosts that are already lost. Ignore them.
+			addr := fmt.Sprintf("%s:%d", h, port)
+			go sendTCPMsg(msg, addr)
+		}
+	}
+
+	reqId += 1
 }

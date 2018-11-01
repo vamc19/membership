@@ -3,7 +3,7 @@ version: '3'
 services:
   machine1:
     image: ubuntu
-    command: /code/prj2 -p 13337 -h /code/hostfile
+    command: /code/prj2 -p 13337 -h /code/hostfile -t2
     hostname: vdi-linux-030.ccs.neu.edu
     networks:
       lab1:
@@ -58,8 +58,6 @@ services:
         - vdi-linux-034.ccs.neu.edu
     volumes:
     - "./:/code"
-
-
 
 networks:
   lab1:

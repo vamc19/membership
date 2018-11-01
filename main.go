@@ -17,18 +17,21 @@ var pidHostMap = make(map[int]string) // maps pid to hostname
 var ipHostMap = make(map[string]string) // maps remote ip addresses to hostname
 
 var leaderHostname string
+var hostname string
 var port int
 var heartbeatFreq int
 var isLeader bool
 var failDuringRemove bool // flag for test case 4
-var removeFailed bool     // flag for test case 2
+var removeFailedFlag bool // flag for test case 2
+var recoveringLeader bool
 
 var viewId int
 var reqId int
 var membershipList = make(map[string]bool)     // hostname : true
 var reqList = make(map[[2]int]Message)         // {reqId, viewId} : Message
 var lastHeartbeat = make(map[string]time.Time) // host : Time of last heartbeat
-var lostHosts = make(map[string]bool)          // all the hosts that are no longer alive
+var tempLostList = make(map[string]bool)       // all the hosts that are no longer alive
+var removedList = make(map[string]bool)        // all the hosts that are removed from membership
 
 func main() {
 
@@ -52,14 +55,15 @@ func main() {
 
 	// Set test case flags
 	failDuringRemove = *leaderFailFlag
-	removeFailed = !*persistFailNodeFlag
+	removeFailedFlag = !*persistFailNodeFlag
+	recoveringLeader = false
 
-	hostname, err := os.Hostname()
-	LogFatalCheck(err, "Error retrieving hostname")
+	hostname, _ = os.Hostname()
 
 	for i, h := range hosts {
-		hostPidMap[h] = i
-		pidHostMap[i] = h
+		pid := i + 1
+		hostPidMap[h] = pid
+		pidHostMap[pid] = h
 		ipAddrs, _ := net.LookupHost(h)
 		ipHostMap[ipAddrs[0]] = h
 	}
